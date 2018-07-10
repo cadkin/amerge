@@ -1,8 +1,20 @@
 #!/bin/bash
 
 SECONDS=0
+KJOBS=4
 LAYMAN_PATH=/usr/bin/layman
 REVDEP_PATH=/usr/bin/revdep-rebuild
+
+function will_pkg_be_updated {
+    VER_INS="$(portageq best_version / "$1")"
+    VER_AVL="$(portageq best_visible / "$1")"
+
+    if [ "$VER_INS" == "$VER_AVL" ]; then
+        RESULT=false
+    else
+        RESULT=true
+    fi
+}
 
 printf "\033[1;34m\nStarting automerge on %s.\n\033[0m" "$(date)"
 
@@ -23,6 +35,34 @@ if [ -e "$LAYMAN_PATH" ]; then
 else
     printf "\n"
 fi
+
+# Check if gcc is going to be upgraded. If it is, exit. We don't want to break things.
+will_pkg_be_updated "sys-devel/gcc"
+if ( $RESULT == true ); then
+    printf "\033[1;31m\n--------------------------------------------------------\n\033[0m"
+    printf "\nGCC upgrade detected! Please perform this manually first.\n"
+    exit -2;
+fi
+
+# Set a flag for kernel upgrades later.
+will_pkg_be_updated "sys-kernel/gentoo-sources"
+if ( $RESULT == true); then
+    KUPGRADE=true
+else
+    KUPGRADE=false
+fi
+
+# Update portage first.
+will_pkg_be_updated "sys-apps/portage"
+if ($RESULT == true); then
+    printf "\033[1;31m\n- Portage Upgrade --------------------------------------\n\n\033[0m"
+    emerge --tree --quiet-build sys-apps/portage
+    if (($? != 0)); then
+        printf "Caught error from emerge phase.\n"
+        exit -2
+    fi
+fi
+    
 
 # Read the news.
 #eselect news read
@@ -62,7 +102,7 @@ fi
 printf "\033[1;31m\n- Emerge Dependency Clean ------------------------------\n\033[0m"
 emerge --depclean
 if (($? != 0)); then
-    printf "Caught error during depclean.\n" $?
+    printf "Caught error from depclean.\n" $?
     exit -4
 fi
 
@@ -72,29 +112,27 @@ emerge @preserved-rebuild
 
 # Update the kernel.
 printf "\033[1;31m\n- Kernel Upgrade ---------------------------------------\n\033[0m"
-eselect kernel set 1
-# Determining kernel versions.
-CKERN=$(uname -r)
-NKERN=$(eselect kernel show|grep "/usr/src/linux-" |sed -e 's/  \/usr\/src\/linux-//g')
-
-if [ "$CKERN" == "$NKERN" ]; then
-    printf "\nNo new kernel, skipping auto-upgrade.\n"
-else
+if ( $KUPGRADE == true ); then
+    eselect kernel set 1
+    # Determining kernel versions.
+    CKERN=$(uname -r)
+    NKERN=$(eselect kernel show|grep "/usr/src/linux-" |sed -e 's/  \/usr\/src\/linux-//g')
+    
     printf "\033[1;34m\nUpdating the configuration for the new kernel.\n\033[0m"
     cd /usr/src/linux
     cp /usr/src/linux-${CKERN}/.config /usr/src/linux/.config
     make olddefconfig
-
+    
     printf "\033[1;34m\nBuilding the new kernel.\n\033[0m"
     cat /usr/src/linux/.config | grep --quiet MODULES=y
     if (($? == 0)); then
         # Make and install the kernel.
-        make -j3 && make modules_install && make install
+        make -j${KJOBS} && make modules_install && make install
     else
         # Make and install the kernel (no modules).
-        make -j3 && make install
+        make -j${KJOBS} && make install
     fi
-
+    
     # Update extlinux config and store old kernel.
     printf "\033[1;34m\nUpdating bootloader configuration.\n\033[0m"
     cd /boot/
@@ -102,6 +140,8 @@ else
     mkdir /boot/old_kernel/$CKERN/
     mv *$CKERN /boot/old_kernel/$CKERN/
     rm /boot/*.old
+else 
+    printf "\nNo new kernel, skipping auto-upgrade.\n"
 fi
 
 printf "\033[1;31m\n--------------------------------------------------------\n\033[0m"

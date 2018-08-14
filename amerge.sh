@@ -1,11 +1,14 @@
 #!/bin/bash
 
-SECONDS=0
+# A (hopefully) comprehensive script to perform upgrades on a Gentoo system.
+# Last update: 08/14/18
+
 KJOBS=4
 LAYMAN_PATH=/usr/bin/layman
 REVDEP_PATH=/usr/bin/revdep-rebuild
 GCC_AUTO=true
 
+SECONDS=0
 # Check if any package will be updated prior to world update.
 function will_pkg_be_updated {
     VER_INS="$(portageq best_version / "$1")"
@@ -44,22 +47,24 @@ function printdiv {
     fi
 }
 
+function printerr {
+    printdiv ""
+    printf "%s " $1
+    printf "\n"
+    exit 128
+}
+
 printf "\033[1;34m\nStarting automerge on %s.\n\033[0m" "$(date)"
 
 # Fetching the latest repos.
 printdiv "Portage Sync"
 emerge-webrsync
-if (($? != 0)); then
-    printf "Caught error from emerge-webrsync.\n" $?
-    exit 128
-fi
+if (($? != 0)); then printerr "Caught error from emerge-webrsync during sync."; fi
+
 if [ -e "$LAYMAN_PATH" ]; then
     printdiv "Layman Sync"
     layman -S
-    if (($? != 0)); then
-        printf "Caught error from layman.\n" $?
-        exit 128
-    fi
+    if (($? != 0)); then printerr "Caught error from layman during sync."; fi
 else
     printf "\n"
 fi
@@ -76,6 +81,7 @@ if ( $RESULT == true ); then
     printdiv "GCC Upgrade: Emerge"
     printf "\nGCC upgrade detected! Performing auto-upgrade (set GCC_AUTO to false to disable this function).\n\033[0m"
     emerge --oneshot sys-devel/gcc
+    if (($? != 0)); then printerr "Caught error from emerge during gcc upgrade."; fi
 
     printdiv "GCC Upgrade: Config"
     gcc-config 2
@@ -83,9 +89,11 @@ if ( $RESULT == true ); then
 
     printdiv "GCC Upgrade: sys-devel/libtool"
     emerge --oneshot --usepkg=n sys-devel/libtool
+    if (($? != 0)); then printerr "Caught error from emerge during libtool upgrade."; fi
 
     printdiv "GCC Upgrade: Reverse Dependency Rebuild"
     revdep-rebuild
+    if (($? != 0)); then printerr "Caught error from revdep-rebuild during gcc upgrade."; fi
 fi
 
 # Set a flag for kernel upgrades later.
@@ -101,58 +109,32 @@ will_pkg_be_updated "sys-apps/portage"
 if ($RESULT == true); then
     printdiv "Portage Upgrade"
     emerge --tree --quiet-build sys-apps/portage
-    if (($? != 0)); then
-        printf "Caught error from emerge phase.\n"
-        exit 128
-    fi
+    if (($? != 0)); then printerr "Caught error from emerge during portage upgrade."; fi
 fi
     
-
-# Read the news.
-#eselect news read
-
-# Pretend a merge to catch any errors.
-#printf "\033[1;31m- Emerge Pretend ---------------------------------------\n\033[0m"
-#emerge --pretend --deep --newuse --update @world
-#if (($? != 0)); then
-#    printf "Caught error from emerge phase.\n" $?
-#    exit -2
-#fi
-
 # If everything looks fine, continue with merging.
 printdiv "Emerge Merge"
 emerge --tree --deep --newuse --update --quiet-build @world
-if (($? != 0)); then
-    printf "Caught error from emerge phase.\n"
-    exit 128
-fi
+if (($? != 0)); then printerr "Caught error from emerge during world update."; fi
 
 # Rebuild any broken libraries.
 printdiv "Reverse Dependency Rebuild"
 if [ -e "$REVDEP_PATH" ]; then
     revdep-rebuild
-    if (($? != 0)); then
-        printf "Caught error from revdep-rebuild.\n"
-        exit 128
-    fi
+    if (($? != 0)); then printerr "Caught error from revdep-rebuild during world update."; fi
 else
     printf "Please install 'gentoolkit' for reverse dependency rebuild support. This is recommended.\n"
 fi
 
-# Update the configuration files.
-#etc-update --automode 9
-
 # Clean up the system.
 printdiv "Emerge Dependency Clean"
 emerge --depclean
-if (($? != 0)); then
-    printf "Caught error from depclean.\n" $?
-    exit 128
-fi
+if (($? != 0)); then printerr "Caught error from emerge during depclean."; fi
 
 # Rebuild any packages still using older libraries.
 printdiv "Emerge Preserved Rebuild"
 emerge @preserved-rebuild
+if (($? != 0)); then printerr "Caught error from emerge during preserved rebuild."; fi
 
 # Update the kernel.
 printdiv "Kernel Upgrade"

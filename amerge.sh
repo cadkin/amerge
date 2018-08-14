@@ -71,15 +71,15 @@ fi
 
 # Check if gcc is going to be upgraded. If it is, check if the user wants to automatically handle this and act accordingly.
 will_pkg_be_updated "sys-devel/gcc"
-if ( $RESULT == true ); then
-    if ( $GCC_AUTO == false ); then
+if [ "$RESULT" = true ]; then
+    if [ "$GCC_AUTO" = false ]; then
         printdiv ""
-        printf "\033[1;34m\nGCC upgrade detected! Please perform this manually or change GCC_AUTO to true.\n"
+        printf "\033[1;34m\nGCC upgrade detected! Please perform this manually or change GCC_AUTO to true.\n\033[0m"
         exit 128
     fi
 
     printdiv "GCC Upgrade: Emerge"
-    printf "\nGCC upgrade detected! Performing auto-upgrade (set GCC_AUTO to false to disable this function).\n\033[0m"
+    printf "\033[1;34m\nGCC upgrade detected! Performing auto-upgrade (set GCC_AUTO to false to disable this function).\n\n\033[0m"
     emerge --oneshot sys-devel/gcc
     if (($? != 0)); then printerr "Caught error from emerge during gcc upgrade."; fi
 
@@ -98,7 +98,7 @@ fi
 
 # Set a flag for kernel upgrades later.
 will_pkg_be_updated "sys-kernel/gentoo-sources"
-if ( $RESULT == true); then
+if [ "$RESULT" = true]; then
     KUPGRADE=true
 else
     KUPGRADE=false
@@ -106,7 +106,7 @@ fi
 
 # Update portage first.
 will_pkg_be_updated "sys-apps/portage"
-if ($RESULT == true); then
+if [ "$RESULT" = true]; then
     printdiv "Portage Upgrade"
     emerge --tree --quiet-build sys-apps/portage
     if (($? != 0)); then printerr "Caught error from emerge during portage upgrade."; fi
@@ -138,7 +138,7 @@ if (($? != 0)); then printerr "Caught error from emerge during preserved rebuild
 
 # Update the kernel.
 printdiv "Kernel Upgrade"
-if ( $KUPGRADE == true ); then
+if [ "$KUPGRADE" = true ]; then
     eselect kernel set 1
     # Determining kernel versions.
     CKERN=$(uname -r)

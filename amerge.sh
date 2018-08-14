@@ -4,6 +4,7 @@ SECONDS=0
 KJOBS=4
 LAYMAN_PATH=/usr/bin/layman
 REVDEP_PATH=/usr/bin/revdep-rebuild
+GCC_AUTO=true
 
 # Check if any package will be updated prior to world update.
 function will_pkg_be_updated {
@@ -50,25 +51,41 @@ printdiv "Portage Sync"
 emerge-webrsync
 if (($? != 0)); then
     printf "Caught error from emerge-webrsync.\n" $?
-    exit -1
+    exit 128
 fi
 if [ -e "$LAYMAN_PATH" ]; then
     printdiv "Layman Sync"
     layman -S
     if (($? != 0)); then
         printf "Caught error from layman.\n" $?
-        exit -1
+        exit 128
     fi
 else
     printf "\n"
 fi
 
-# Check if gcc is going to be upgraded. If it is, exit. We don't want to break things.
+# Check if gcc is going to be upgraded. If it is, check if the user wants to automatically handle this and act accordingly.
 will_pkg_be_updated "sys-devel/gcc"
 if ( $RESULT == true ); then
-    printdiv ""
-    printf "\nGCC upgrade detected! Please perform this manually first.\n"
-    exit -2;
+    if ( $GCC_AUTO == false ); then
+        printdiv ""
+        printf "\033[1;34m\nGCC upgrade detected! Please perform this manually or change GCC_AUTO to true.\n"
+        exit 128
+    fi
+
+    printdiv "GCC Upgrade: Emerge"
+    printf "\nGCC upgrade detected! Performing auto-upgrade (set GCC_AUTO to false to disable this function).\n\033[0m"
+    emerge --oneshot sys-devel/gcc
+
+    printdiv "GCC Upgrade: Config"
+    gcc-config 2
+    source /etc/profile
+
+    printdiv "GCC Upgrade: sys-devel/libtool"
+    emerge --oneshot --usepkg=n sys-devel/libtool
+
+    printdiv "GCC Upgrade: Reverse Dependency Rebuild"
+    revdep-rebuild
 fi
 
 # Set a flag for kernel upgrades later.
@@ -86,7 +103,7 @@ if ($RESULT == true); then
     emerge --tree --quiet-build sys-apps/portage
     if (($? != 0)); then
         printf "Caught error from emerge phase.\n"
-        exit -2
+        exit 128
     fi
 fi
     
@@ -107,7 +124,7 @@ printdiv "Emerge Merge"
 emerge --tree --deep --newuse --update --quiet-build @world
 if (($? != 0)); then
     printf "Caught error from emerge phase.\n"
-    exit -2
+    exit 128
 fi
 
 # Rebuild any broken libraries.
@@ -116,7 +133,7 @@ if [ -e "$REVDEP_PATH" ]; then
     revdep-rebuild
     if (($? != 0)); then
         printf "Caught error from revdep-rebuild.\n"
-        exit -3
+        exit 128
     fi
 else
     printf "Please install 'gentoolkit' for reverse dependency rebuild support. This is recommended.\n"
@@ -130,7 +147,7 @@ printdiv "Emerge Dependency Clean"
 emerge --depclean
 if (($? != 0)); then
     printf "Caught error from depclean.\n" $?
-    exit -4
+    exit 128
 fi
 
 # Rebuild any packages still using older libraries.

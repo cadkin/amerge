@@ -5,6 +5,7 @@ KJOBS=4
 LAYMAN_PATH=/usr/bin/layman
 REVDEP_PATH=/usr/bin/revdep-rebuild
 
+# Check if any package will be updated prior to world update.
 function will_pkg_be_updated {
     VER_INS="$(portageq best_version / "$1")"
     VER_AVL="$(portageq best_visible / "$1")"
@@ -16,17 +17,43 @@ function will_pkg_be_updated {
     fi
 }
 
+# Print out a divider of width 60 with a label.
+function printdiv {
+    printf "\033[1;31m\n-"
+
+    if [ -z "$1" ]; then
+        printf -- "-----------------------------------------------------------\n\033[0m"
+        return
+    else
+        SIZE=${#1}
+        REMAIN=$((57-$SIZE))
+        
+        if [ $REMAIN -lt 0 ]; then
+            printf " PRINTDIV_ERR: String must be no greater than 56 characters. -\n\033[0m"
+            return
+        fi
+
+        printf " " 
+        printf "%s " $1
+        while [ $REMAIN -gt 0 ]; do 
+            printf "-"
+            let REMAIN=REMAIN-1
+        done
+        printf "\n\033[0m"
+    fi
+}
+
 printf "\033[1;34m\nStarting automerge on %s.\n\033[0m" "$(date)"
 
 # Fetching the latest repos.
-printf "\033[1;31m\n- Portage Sync -----------------------------------------\n\n\033[0m"
+printdiv "Portage Sync"
 emerge-webrsync
 if (($? != 0)); then
     printf "Caught error from emerge-webrsync.\n" $?
     exit -1
 fi
 if [ -e "$LAYMAN_PATH" ]; then
-    printf "\033[1;31m\n- Layman Sync ------------------------------------------\n\033[0m"
+    printdiv "Layman Sync"
     layman -S
     if (($? != 0)); then
         printf "Caught error from layman.\n" $?
@@ -39,7 +66,7 @@ fi
 # Check if gcc is going to be upgraded. If it is, exit. We don't want to break things.
 will_pkg_be_updated "sys-devel/gcc"
 if ( $RESULT == true ); then
-    printf "\033[1;31m\n--------------------------------------------------------\n\033[0m"
+    printdiv ""
     printf "\nGCC upgrade detected! Please perform this manually first.\n"
     exit -2;
 fi
@@ -55,7 +82,7 @@ fi
 # Update portage first.
 will_pkg_be_updated "sys-apps/portage"
 if ($RESULT == true); then
-    printf "\033[1;31m\n- Portage Upgrade --------------------------------------\n\n\033[0m"
+    printdiv "Portage Upgrade"
     emerge --tree --quiet-build sys-apps/portage
     if (($? != 0)); then
         printf "Caught error from emerge phase.\n"
@@ -76,7 +103,7 @@ fi
 #fi
 
 # If everything looks fine, continue with merging.
-printf "\033[1;31m\n- Emerge Merge -----------------------------------------\n\n\033[0m"
+printdiv "Emerge Merge"
 emerge --tree --deep --newuse --update --quiet-build @world
 if (($? != 0)); then
     printf "Caught error from emerge phase.\n"
@@ -84,7 +111,7 @@ if (($? != 0)); then
 fi
 
 # Rebuild any broken libraries.
-printf "\033[1;31m\n- Reverse Dependency Rebuild ---------------------------\n\n\033[0m"
+printdiv "Reverse Dependency Rebuild"
 if [ -e "$REVDEP_PATH" ]; then
     revdep-rebuild
     if (($? != 0)); then
@@ -99,7 +126,7 @@ fi
 #etc-update --automode 9
 
 # Clean up the system.
-printf "\033[1;31m\n- Emerge Dependency Clean ------------------------------\n\033[0m"
+printdiv "Emerge Dependency Clean"
 emerge --depclean
 if (($? != 0)); then
     printf "Caught error from depclean.\n" $?
@@ -107,11 +134,11 @@ if (($? != 0)); then
 fi
 
 # Rebuild any packages still using older libraries.
-printf "\033[1;31m\n- Emerge Preserved Rebuild -----------------------------\n\n\033[0m"
+printdiv "Emerge Preserved Rebuild"
 emerge @preserved-rebuild
 
 # Update the kernel.
-printf "\033[1;31m\n- Kernel Upgrade ---------------------------------------\n\033[0m"
+printdiv "Kernel Upgrade"
 if ( $KUPGRADE == true ); then
     eselect kernel set 1
     # Determining kernel versions.
@@ -144,7 +171,7 @@ else
     printf "\nNo new kernel, skipping auto-upgrade.\n"
 fi
 
-printf "\033[1;31m\n--------------------------------------------------------\n\033[0m"
+printdiv ""
 DURATION=$SECONDS
 printf "\033[1;34m\nFinished automerge in %d minutes and %d seconds.\n\n\033[0m" $(($DURATION / 60)) $(($DURATION % 60))
 

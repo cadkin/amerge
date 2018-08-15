@@ -96,50 +96,19 @@ if [ "$RESULT" = true ]; then
     if (($? != 0)); then printerr "Caught error from revdep-rebuild during gcc upgrade."; fi
 fi
 
-# Set a flag for kernel upgrades later.
-will_pkg_be_updated "sys-kernel/gentoo-sources"
-if [ "$RESULT" = true]; then
-    KUPGRADE=true
-else
-    KUPGRADE=false
-fi
-
 # Update portage first.
 will_pkg_be_updated "sys-apps/portage"
-if [ "$RESULT" = true]; then
+if [ "$RESULT" = true ]; then
     printdiv "Portage Upgrade"
     emerge --tree --quiet-build sys-apps/portage
     if (($? != 0)); then printerr "Caught error from emerge during portage upgrade."; fi
 fi
     
-# If everything looks fine, continue with merging.
-printdiv "Emerge Merge"
-emerge --tree --deep --newuse --update --quiet-build @world
-if (($? != 0)); then printerr "Caught error from emerge during world update."; fi
-
-# Rebuild any broken libraries.
-printdiv "Reverse Dependency Rebuild"
-if [ -e "$REVDEP_PATH" ]; then
-    revdep-rebuild
-    if (($? != 0)); then printerr "Caught error from revdep-rebuild during world update."; fi
-else
-    printf "Please install 'gentoolkit' for reverse dependency rebuild support. This is recommended.\n"
-fi
-
-# Clean up the system.
-printdiv "Emerge Dependency Clean"
-emerge --depclean
-if (($? != 0)); then printerr "Caught error from emerge during depclean."; fi
-
-# Rebuild any packages still using older libraries.
-printdiv "Emerge Preserved Rebuild"
-emerge @preserved-rebuild
-if (($? != 0)); then printerr "Caught error from emerge during preserved rebuild."; fi
-
 # Update the kernel.
 printdiv "Kernel Upgrade"
-if [ "$KUPGRADE" = true ]; then
-    eselect kernel set 1
+will_pkg_be_updated "sys-kernel/gentoo-sources"
+if [ "$RESULT" = true ]; then
+    emerge  sys-kernel/gentoo-sources
     # Determining kernel versions.
     CKERN=$(uname -r)
     NKERN=$(eselect kernel show|grep "/usr/src/linux-" |sed -e 's/  \/usr\/src\/linux-//g')
@@ -163,12 +132,36 @@ if [ "$KUPGRADE" = true ]; then
     printf "\033[1;34m\nUpdating bootloader configuration.\n\033[0m"
     cd /boot/
     sed -i "s/$CKERN/$NKERN/g" /boot/extlinux/extlinux.conf
-    mkdir /boot/old_kernel/$CKERN/
+    mkdir -p /boot/old_kernel/$CKERN/
     mv *$CKERN /boot/old_kernel/$CKERN/
     rm /boot/*.old
 else 
     printf "\nNo new kernel, skipping auto-upgrade.\n"
 fi
+
+# If everything looks fine, continue with merging.
+printdiv "Emerge Merge"
+emerge --tree --deep --newuse --update --with-bdeps=y --quiet-build @world
+if (($? != 0)); then printerr "Caught error from emerge during world update."; fi
+
+# Rebuild any broken libraries.
+printdiv "Reverse Dependency Rebuild"
+if [ -e "$REVDEP_PATH" ]; then
+    revdep-rebuild
+    if (($? != 0)); then printerr "Caught error from revdep-rebuild during world update."; fi
+else
+    printf "Please install 'gentoolkit' for reverse dependency rebuild support. This is recommended.\n"
+fi
+
+# Clean up the system.
+printdiv "Emerge Dependency Clean"
+emerge --depclean
+if (($? != 0)); then printerr "Caught error from emerge during depclean."; fi
+
+# Rebuild any packages still using older libraries.
+printdiv "Emerge Preserved Rebuild"
+emerge @preserved-rebuild
+if (($? != 0)); then printerr "Caught error from emerge during preserved rebuild."; fi
 
 printdiv ""
 DURATION=$SECONDS

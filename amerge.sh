@@ -1,7 +1,5 @@
 #!/bin/bash
-
 # A (hopefully) comprehensive script to perform upgrades on a Gentoo system.
-# Last update: 08/14/18
 
 KJOBS=4
 LAYMAN_PATH=/usr/bin/layman

@@ -107,6 +107,7 @@ printdiv "Kernel Upgrade"
 will_pkg_be_updated "sys-kernel/gentoo-sources"
 if [ "$RESULT" = true ]; then
     emerge sys-kernel/gentoo-sources
+    eselect kernel set 2
     # Determining kernel versions.
     CKERN=$(uname -r)
     NKERN=$(eselect kernel show|grep "/usr/src/linux-" |sed -e 's/  \/usr\/src\/linux-//g')

@@ -31,15 +31,15 @@ function printdiv {
     else
         SIZE=${#1}
         REMAIN=$((57-$SIZE))
-        
+
         if [ $REMAIN -lt 0 ]; then
             printf " PRINTDIV_ERR: String must be no greater than 56 characters. -\n\033[0m"
             return
         fi
 
-        printf " " 
+        printf " "
         printf "%s " $1
-        while [ $REMAIN -gt 0 ]; do 
+        while [ $REMAIN -gt 0 ]; do
             printf "-"
             let REMAIN=REMAIN-1
         done
@@ -103,22 +103,21 @@ if [ "$RESULT" = true ]; then
     emerge --tree --quiet-build sys-apps/portage
     if (($? != 0)); then printerr "Caught error from emerge during portage upgrade."; fi
 fi
-    
+
 # Update the kernel.
 printdiv "Kernel Upgrade"
 will_pkg_be_updated "sys-kernel/gentoo-sources"
 if [ "$RESULT" = true ]; then
     emerge sys-kernel/gentoo-sources
-    eselect kernel set 2
     # Determining kernel versions.
     CKERN=$(uname -r)
     NKERN=$(eselect kernel show|grep "/usr/src/linux-" |sed -e 's/  \/usr\/src\/linux-//g')
-    
+
     printf "\033[1;34m\nUpdating the configuration for the new kernel.\n\033[0m"
     cd /usr/src/linux
     cp /usr/src/linux-${CKERN}/.config /usr/src/linux/.config
     make olddefconfig
-    
+
     printf "\033[1;34m\nBuilding the new kernel.\n\033[0m"
     cat /usr/src/linux/.config | grep --quiet MODULES=y
     if (($? == 0)); then
@@ -128,7 +127,7 @@ if [ "$RESULT" = true ]; then
         # Make and install the kernel (no modules).
         make -j${KJOBS} && make install
     fi
-    
+
     # Update extlinux config and store old kernel.
     printf "\033[1;34m\nUpdating bootloader configuration.\n\033[0m"
     cd /boot/
@@ -136,7 +135,7 @@ if [ "$RESULT" = true ]; then
     mkdir -p /boot/old_kernel/$CKERN/
     mv *$CKERN /boot/old_kernel/$CKERN/
     rm /boot/*.old
-else 
+else
     printf "\nNo new kernel, skipping auto-upgrade.\n"
 fi
 

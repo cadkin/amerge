@@ -139,7 +139,7 @@ else
 fi
 
 # If everything looks fine, continue with merging.
-printdiv "Emerge Merge"
+printdiv "Emerge World Update"
 emerge --tree --deep --newuse --update --with-bdeps=y --quiet-build @world
 if (($? != 0)); then printerr "Caught error from emerge during world update."; fi
 
@@ -164,6 +164,6 @@ if (($? != 0)); then printerr "Caught error from emerge during preserved rebuild
 
 printdiv ""
 DURATION=$SECONDS
-printf "\033[1;34m\nFinished automerge in %d minutes and %d seconds.\n\n\033[0m" $(($DURATION / 60)) $(($DURATION % 60))
+printf "\033[1;34m\nFinished automerge in %02dh %02dm %02ds.\n\n\033[0m" $(($DURATION / 3600)) $((($DURATION / 60) % 60)) $(($DURATION % 60))
 
 exit 0
